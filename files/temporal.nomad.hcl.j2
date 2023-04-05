@@ -1,0 +1,203 @@
+# terraform-nomad-temporal
+# https://github.com/neomantra/terraform-nomad-temporal
+#
+# files/temporal.nomad.hcl.j2
+#
+# Copyright (c) Neomantra BV 2023. All rights reserved.
+#
+# Thanks to:
+#  https://faun.pub/just-in-time-nomad-running-temporal-on-nomad-5fee139f37ea
+
+job "temporal" {
+  type        = "service"
+  region      = "${NOMAD_REGION}"
+  namespace   = "${NOMAD_NAMESPACE}"
+  datacenters = ${NOMAD_DATACENTERS_JSON}
+
+  group "temporal" {
+    count = 1
+    network {
+      mode = "bridge"
+      port  "grpc" {
+        to = 7233
+      }
+      port  "http" {
+        to = 8080
+      }
+    }
+
+    ### Temporal Application
+    service {
+      name = "temporal-app"
+      tags = [
+        "traefik.tcp.routers.temporal-app.rule=HostSNI(`*`)",
+        "traefik.tcp.routers.temporal-app.entrypoints=${GRPC_ENTRYPOINTS}",
+        "traefik.enable=true",
+      ]        
+      port = "grpc"
+    }
+
+    task "temporal-app" {
+      driver = "docker"
+    %{~ if USE_VAULT_PROVIDER ~}
+      vault {
+        policies = ["${VAULT_KV_POLICY_NAME}"]
+      }
+    %{~ endif ~}
+      env {
+        DB = "postgres"
+        DYNAMIC_CONFIG_FILE_PATH = "/alloc/conf/dynamicconfig/development.yaml"
+        BIND_ON_IP = "0.0.0.0"
+        TEMPORAL_BROADCAST_ADDRESS = "127.0.0.1"
+      }
+
+      config {
+        image = "${TEMPORAL_AUTOSETUP_IMAGE}:${TEMPORAL_AUTOSETUP_TAG}"
+        force_pull = true
+        ports = ["grpc"]
+      }
+
+      resources {
+        memory = 260
+      }
+
+      template {
+        destination = "secrets/.envs"
+        change_mode = "noop"
+        env         = true
+        data        = <<EOF
+%{ if USE_VAULT_PROVIDER }
+{{ with secret "${VAULT_KV_PATH}" }}
+POSTGRES_USER="{{ .Data.data.${VAULT_KV_FIELD_USERNAME} }}"
+POSTGRES_PASSWORD="{{ .Data.data.${VAULT_KV_FIELD_PASSWORD} }}"
+POSTGRES_PWD="{{ .Data.data.${VAULT_KV_FIELD_PASSWORD} }}"
+{{ end }}
+%{ else ~}
+POSTGRES_USER="${USERNAME}"
+POSTGRES_PASSWORD="${PASSWORD}"
+POSTGRES_PWD="${PASSWORD}"
+%{ endif ~}
+{{- range service "${PG_SERVICE_NAME}" }}
+POSTGRES_SEEDS="{{ .Address }}"
+DB_PORT={{.Port}}
+{{ end }}
+EOF
+    }
+      template {
+        destination = "$${NOMAD_ALLOC_DIR}/conf/foo.txt"
+        change_mode = "noop"
+        env         = false
+        data        = <<EOF
+%{ if USE_VAULT_PROVIDER }
+{{ with secret "${VAULT_KV_PATH}" }}
+POSTGRES_USER="{{ .Data.data.${VAULT_KV_FIELD_USERNAME} }}"
+POSTGRES_PASSWORD="{{ .Data.data.${VAULT_KV_FIELD_PASSWORD} }}"
+POSTGRES_PWD="{{ .Data.data.${VAULT_KV_FIELD_PASSWORD} }}"
+{{ end }}
+%{ else ~}
+POSTGRES_USER="${USERNAME}"
+POSTGRES_PASSWORD="${PASSWORD}"
+POSTGRES_PWD="${PASSWORD}"
+%{ endif ~}
+{{- range service "${PG_SERVICE_NAME}" }}
+POSTGRES_SEEDS="{{ .Address }}"
+DB_PORT={{.Port}}
+{{ end }}
+EOF
+    }
+
+      template {
+        destination = "$${NOMAD_ALLOC_DIR}/conf/dynamicconfig/development.yaml"
+        data        = <<EOF
+frontend.keepAliveMaxConnectionAge:
+- value: 5m
+frontend.keepAliveMaxConnectionAgeGrace:
+- value: 70s
+frontend.enableClientVersionCheck:
+- value: true
+  constraints: {}
+history.persistenceMaxQPS:
+- value: 3000
+  constraints: {}
+frontend.persistenceMaxQPS:
+- value: 3000
+  constraints: {}
+frontend.historyMgrNumConns:
+- value: 10
+  constraints: {}
+frontend.throttledLogRPS:
+- value: 20
+  constraints: {}
+history.historyMgrNumConns:
+- value: 50
+  constraints: {}
+history.defaultActivityRetryPolicy:
+- value:
+    InitialIntervalInSeconds: 1
+    MaximumIntervalCoefficient: 100.0
+    BackoffCoefficient: 2.0
+    MaximumAttempts: 0
+history.defaultWorkflowRetryPolicy:
+- value:
+    InitialIntervalInSeconds: 1
+    MaximumIntervalCoefficient: 100.0
+    BackoffCoefficient: 2.0
+    MaximumAttempts: 0
+system.advancedVisibilityWritingMode:
+- value: "off"
+  constraints: {}
+EOF
+      }
+    }
+
+    # task "temporal-admin-tools" {
+    #   lifecycle {
+    #     hook = "poststart"
+    #     sidecar = false
+    #   }
+    #   driver = "docker"
+    #   env {
+    #     TEMPORAL_CLI_ADDRESS=temporal:7233
+    #   }
+    #   config {
+    #     image = "${TEMPORAL_ADMIN_TOOLS_IMAGE}:${TEMPORAL_ADMIN_TOOLS_TAG}"
+    #     force_pull = true
+    #   }
+    #   resources {
+    #     memory = 250
+    #   }
+    # }
+
+    ### Temporal UI Web Service
+    service {
+      name = "temporal-ui"
+      tags = [
+        "traefik.http.routers.temporal-ui.rule=Host(`${SERVICE_DNS_NAME}`)",
+        "traefik.http.routers.temporal-ui.entrypoints=${HTTP_ENTRYPOINTS}",
+        "traefik.http.routers.temporal-ui.tls=false",
+        "traefik.enable=true",
+      ]
+      port = "http"
+    }
+
+    task "temporal-ui" {
+      lifecycle {
+        hook = "poststart"
+        sidecar = false
+      }
+      driver = "docker"
+      env {
+        TEMPORAL_GRPC_ENDPOINT = "127.0.0.1:7233"
+        TEMPORAL_PERMIT_WRITE_API = true
+      }
+      config {
+        image = "${TEMPORAL_UI_IMAGE}:${TEMPORAL_UI_TAG}"
+        force_pull = true
+        ports = ["http"]
+      }
+      resources {
+        memory = 250
+      }
+    }
+  }
+}
