@@ -72,5 +72,7 @@ resource "nomad_job" "temporal" {
     SERVICE_DNS_NAME           = var.service_dns_name
     HTTP_ENTRYPOINTS           = var.http_entrypoints
     GRPC_ENTRYPOINTS           = var.grpc_entrypoints
+    PROM_ENTRYPOINTS           = var.prom_entrypoints
+    USE_PROMETHEUS             = var.use_prometheus
   })
 }

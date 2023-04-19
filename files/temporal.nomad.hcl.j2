@@ -21,6 +21,11 @@ job "temporal" {
       port  "grpc" {
         to = 7233
       }
+    %{~ if USE_PROMETHEUS ~}
+      port  "prom" {
+        to = 8081
+      }
+    %{~ endif ~}
       port  "http" {
         to = 8080
       }
@@ -37,6 +42,18 @@ job "temporal" {
       port = "grpc"
     }
 
+  %{~ if USE_PROMETHEUS ~}
+    service {
+      name = "temporal-prom"
+      tags = [
+        "traefik.tcp.routers.temporal-app.rule=HostSNI(`*`)",
+        "traefik.tcp.routers.temporal-app.entrypoints=${PROM_ENTRYPOINTS}",
+        "traefik.enable=true",
+      ]        
+      port = "prom"
+    }
+  %{~ endif ~}
+
     task "temporal-app" {
       driver = "docker"
     %{~ if USE_VAULT_PROVIDER ~}
@@ -49,12 +66,20 @@ job "temporal" {
         DYNAMIC_CONFIG_FILE_PATH = "/alloc/conf/dynamicconfig/development.yaml"
         BIND_ON_IP = "0.0.0.0"
         TEMPORAL_BROADCAST_ADDRESS = "127.0.0.1"
+      %{~ if USE_PROMETHEUS ~}
+        PROMETHEUS_ENDPOINT = "0.0.0.0:8081"
+      %{~ endif ~}
       }
 
       config {
         image = "${TEMPORAL_AUTOSETUP_IMAGE}:${TEMPORAL_AUTOSETUP_TAG}"
         force_pull = true
-        ports = ["grpc"]
+        ports = [
+        %{~ if USE_PROMETHEUS ~}
+          "prom",
+        %{~ endif ~}
+          "grpc"
+        ]
       }
 
       resources {

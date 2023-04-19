@@ -133,3 +133,19 @@ variable "grpc_entrypoints" {
   description = "Traefik entrypoints for grpc API interface"
   default     = "grpc"
 }
+
+
+###########################################################
+## Prometheus ################################################
+
+variable "use_prometheus" {
+  type        = bool
+  description = "Enable Prometheus metrics"
+  default     = false
+}
+
+variable "prom_entrypoints" {
+  type        = string
+  description = "Treafik entrypoints for Prometheus metrics HTTP interface"
+  default     = "prom"
+}
