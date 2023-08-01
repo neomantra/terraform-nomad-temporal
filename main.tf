@@ -74,5 +74,10 @@ resource "nomad_job" "temporal" {
     GRPC_ENTRYPOINTS           = var.grpc_entrypoints
     PROM_ENTRYPOINTS           = var.prom_entrypoints
     USE_PROMETHEUS             = var.use_prometheus
+
+    DEFAULT_NAMESPACE                 = var.temporal_default_namespace
+    DEFAULT_NAMESPACE_RETENTION       = var.temporal_default_namespace_retention
+    SKIP_DEFAULT_NAMESPACE_CREATION   = var.temporal_skip_default_namespace_creation
+    SKIP_ADD_CUSTOM_SEARCH_ATTRIBUTES = var.temporal_skip_add_custom_search_attributes
   })
 }

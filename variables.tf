@@ -86,8 +86,8 @@ variable "temporal_autosetup_image" {
 
 variable "temporal_autosetup_tag" {
   type        = string
-  description = "Temporal autosetup mage tag"
-  default     = "1.20.1"
+  description = "Temporal autosetup mage tag. See https://hub.docker.com/r/temporalio/auto-setup/tags"
+  default     = "1.21.4"
 }
 
 variable "temporal_admin_tools_image" {
@@ -98,8 +98,8 @@ variable "temporal_admin_tools_image" {
 
 variable "temporal_admin_tools_tag" {
   type        = string
-  description = "Temporal admin-tools image tag"
-  default     = "1.20.1"
+  description = "Temporal admin-tools image tag.  See https://hub.docker.com/r/temporalio/admin-tools/tags"
+  default     = "1.21.4"
 }
 
 variable "temporal_ui_image" {
@@ -110,8 +110,32 @@ variable "temporal_ui_image" {
 
 variable "temporal_ui_tag" {
   type        = string
-  description = "Temporal UI image tag"
-  default     = "2.13.3"
+  description = "Temporal UI image tag.  See https://hub.docker.com/r/temporalio/ui/tags"
+  default     = "2.17.0"
+}
+
+variable "temporal_default_namespace" {
+  type        = string
+  description = "Default namespace"
+  default     = "default"
+}
+
+variable "temporal_default_namespace_retention" {
+  type        = number
+  description = "Default namespace retention days"
+  default     = 1
+}
+
+variable "temporal_skip_default_namespace_creation" {
+  type        = bool
+  description = "Skip default namespace creation"
+  default     = false
+}
+
+variable "temporal_skip_add_custom_search_attributes" {
+  type        = bool
+  description = "Skip adding custom search attributes"
+  default     = false
 }
 
 
